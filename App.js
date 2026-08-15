@@ -1,137 +1,174 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, View, Text, ActivityIndicator, BackHandler,
-  Linking, Platform, TouchableOpacity, SafeAreaView, StatusBar as RNStatusBar,
+  Linking, Platform, TouchableOpacity, ScrollView, StatusBar as RNStatusBar,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { StatusBar } from "expo-status-bar";
+import SITE from "./site";
 
 // ============================================================
 // DefarGaaw — application mobile
-// Le site est embarqué dans l'application (dossier /web) : il
-// s'affiche même sans connexion. Les liens WhatsApp, téléphone
-// et email sont ouverts par les applications natives du système.
+//
+// Principes de robustesse :
+//  - l'écran de marque s'affiche IMMÉDIATEMENT (aucune dépendance) ;
+//  - la WebView n'est montée qu'ensuite, une fois l'écran visible ;
+//  - toute erreur JavaScript est capturée et affichée lisiblement
+//    (au lieu d'un écran noir), avec un accès direct à WhatsApp ;
+//  - le site est injecté en HTML : fonctionne sans connexion.
 // ============================================================
 
 const NIGHT = "#0B0F0E";
 const GOLD = "#E0A93B";
+const CREAM = "#E9E4D6";
 const DIM = "#8A958F";
+const BASE_URL = "https://defargaaw.com/";
+const WHATSAPP = "https://wa.me/221780190581";
+const TEL = "tel:+221780190581";
 
-// Site embarqué (fonctionne hors connexion).
-const LOCAL_SITE = require("./Web/index.html");
+const openWhatsApp = () => Linking.openURL(WHATSAPP).catch(() => {});
+const callUs = () => Linking.openURL(TEL).catch(() => {});
 
-export default function App() {
+/* ---------- Écran de marque (toujours affichable) ---------- */
+function Brand({ children }) {
+  return (
+    <View style={styles.overlay}>
+      <View style={styles.orb} />
+      <Text style={styles.brand}>DEFARGAAW</Text>
+      <Text style={styles.tag}>répare vite · dakar</Text>
+      {children}
+    </View>
+  );
+}
+
+/* ---------- Barrière d'erreur : plus jamais d'écran noir ---------- */
+class ErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <View style={styles.root}>
+        <ScrollView contentContainerStyle={styles.overlay}>
+          <Text style={styles.brand}>DEFARGAAW</Text>
+          <Text style={styles.err}>
+            L'affichage a rencontré un problème. Vous pouvez nous joindre directement :
+          </Text>
+          <TouchableOpacity style={[styles.btn, styles.btnGold]} onPress={openWhatsApp}>
+            <Text style={[styles.btnTxt, { color: NIGHT }]}>Écrire sur WhatsApp</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btn} onPress={callUs}>
+            <Text style={styles.btnTxt}>Appeler le 78 019 05 81</Text>
+          </TouchableOpacity>
+          <Text style={styles.detail}>{String(this.state.err && this.state.err.message ? this.state.err.message : this.state.err)}</Text>
+        </ScrollView>
+      </View>
+    );
+  }
+}
+
+function Main() {
   const webRef = useRef(null);
-  const [loading, setLoading] = useState(true);
+  const [mountWeb, setMountWeb] = useState(false);
+  const [ready, setReady] = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  // Bouton "retour" Android : revient dans l'historique du site.
+  // 1) afficher l'écran de marque, puis monter la WebView
+  useEffect(() => {
+    const t = setTimeout(() => setMountWeb(true), 350);
+    return () => clearTimeout(t);
+  }, []);
+
+  // 2) filet de sécurité : retirer le voile même si onLoadEnd ne vient pas
+  useEffect(() => {
+    if (!mountWeb) return;
+    const t = setTimeout(() => setReady(true), 7000);
+    return () => clearTimeout(t);
+  }, [mountWeb]);
+
+  // 3) bouton retour Android
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const onBack = () => {
-      if (canGoBack && webRef.current) {
-        webRef.current.goBack();
-        return true;
-      }
+      if (canGoBack && webRef.current) { webRef.current.goBack(); return true; }
       return false;
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
     return () => sub.remove();
   }, [canGoBack]);
 
-  // Interception : WhatsApp, téléphone, email et liens externes
-  // partent vers les applications natives, pas dans la WebView.
+  // WhatsApp / téléphone / email / liens externes -> applications natives
   const onShouldStart = useCallback((req) => {
     const url = req.url || "";
-    const external =
-      url.startsWith("whatsapp:") ||
-      url.startsWith("tel:") ||
-      url.startsWith("mailto:") ||
-      url.includes("wa.me") ||
-      url.includes("api.whatsapp.com");
-
-    if (external) {
-      Linking.openURL(url).catch(() => {});
-      return false;
-    }
-    // navigation interne (fichier local ou ancres) : autorisée
-    if (url.startsWith("file://") || url.startsWith("about:") || url.startsWith("data:")) return true;
-
-    // tout autre lien http(s) externe -> navigateur du téléphone
-    if (url.startsWith("http")) {
+    if (url === "about:blank" || url.startsWith("data:") || url.startsWith("file:") ||
+        url === BASE_URL || url.startsWith(BASE_URL + "#")) return true;
+    if (url.startsWith("http") || url.startsWith("whatsapp:") || url.startsWith("tel:") ||
+        url.startsWith("mailto:") || url.startsWith("sms:")) {
       Linking.openURL(url).catch(() => {});
       return false;
     }
     return true;
   }, []);
 
-  const retry = () => {
-    setFailed(false);
-    setLoading(true);
-    webRef.current?.reload();
-  };
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="light" backgroundColor={NIGHT} translucent={false} />
-      <View style={styles.container}>
-        {!failed && (
-          <WebView
-            ref={webRef}
-            source={LOCAL_SITE}
-            originWhitelist={["*"]}
-            allowFileAccess
-            javaScriptEnabled
-            javaScriptCanOpenWindowsAutomatically
-            domStorageEnabled
-            setSupportMultipleWindows={false}
-            mediaPlaybackRequiresUserAction={false}
-            onShouldStartLoadWithRequest={onShouldStart}
-            onNavigationStateChange={(s) => setCanGoBack(s.canGoBack)}
-            onLoadEnd={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); }}
-            style={styles.web}
-            containerStyle={styles.web}
-            // rendu fluide sur Android
-            androidLayerType="hardware"
-            overScrollMode="never"
-          />
-        )}
+    <View style={styles.root}>
+      {mountWeb && !failed && (
+        <WebView
+          ref={webRef}
+          source={{ html: SITE, baseUrl: BASE_URL }}
+          originWhitelist={["*"]}
+          javaScriptEnabled
+          domStorageEnabled
+          javaScriptCanOpenWindowsAutomatically
+          setSupportMultipleWindows={false}
+          mixedContentMode="always"
+          onShouldStartLoadWithRequest={onShouldStart}
+          onNavigationStateChange={(s) => setCanGoBack(s.canGoBack)}
+          onLoadEnd={() => setReady(true)}
+          onError={() => { setReady(true); setFailed(true); }}
+          onHttpError={() => setReady(true)}
+          onRenderProcessGone={() => setFailed(true)}
+          style={styles.web}
+          containerStyle={styles.web}
+          overScrollMode="never"
+        />
+      )}
 
-        {loading && !failed && (
-          <View style={styles.overlay}>
-            <Text style={styles.brand}>DEFARGAAW</Text>
-            <Text style={styles.tag}>répare vite · Dakar</Text>
-            <ActivityIndicator size="large" color={GOLD} style={{ marginTop: 22 }} />
-          </View>
-        )}
+      {!ready && !failed && (
+        <Brand><ActivityIndicator size="large" color={GOLD} style={{ marginTop: 26 }} /></Brand>
+      )}
 
-        {failed && (
-          <View style={styles.overlay}>
-            <Text style={styles.brand}>DEFARGAAW</Text>
-            <Text style={styles.err}>
-              Impossible d'afficher le contenu. Vérifiez votre connexion, puis réessayez.
-            </Text>
-            <TouchableOpacity style={styles.btn} onPress={retry} accessibilityRole="button">
-              <Text style={styles.btnTxt}>Réessayer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnAlt]}
-              onPress={() => Linking.openURL("https://wa.me/221780190581").catch(() => {})}
-            >
-              <Text style={[styles.btnTxt, { color: NIGHT }]}>Nous écrire sur WhatsApp</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </SafeAreaView>
+      {failed && (
+        <Brand>
+          <Text style={styles.err}>
+            Le contenu n'a pas pu s'afficher. Joignez-nous directement :
+          </Text>
+          <TouchableOpacity style={[styles.btn, styles.btnGold]} onPress={openWhatsApp}>
+            <Text style={[styles.btnTxt, { color: NIGHT }]}>Écrire sur WhatsApp</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btn} onPress={callUs}>
+            <Text style={styles.btnTxt}>Appeler le 78 019 05 81</Text>
+          </TouchableOpacity>
+        </Brand>
+      )}
+    </View>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <Main />
+    </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: NIGHT, paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0 },
-  container: { flex: 1, backgroundColor: NIGHT },
+  root: {
+    flex: 1,
+    backgroundColor: NIGHT,
+    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight || 0 : 0,
+  },
   web: { flex: 1, backgroundColor: NIGHT },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -140,13 +177,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
   },
-  brand: { color: "#E9E4D6", fontSize: 30, fontWeight: "900", letterSpacing: 2 },
-  tag: { color: DIM, fontSize: 13, letterSpacing: 3, marginTop: 6, textTransform: "uppercase" },
-  err: { color: DIM, fontSize: 15, textAlign: "center", marginTop: 18, lineHeight: 22 },
+  orb: {
+    width: 96, height: 96, borderRadius: 48, backgroundColor: GOLD,
+    marginBottom: 26, opacity: 0.92,
+  },
+  brand: { color: CREAM, fontSize: 30, fontWeight: "900", letterSpacing: 2 },
+  tag: { color: DIM, fontSize: 12.5, letterSpacing: 3, marginTop: 6, textTransform: "uppercase" },
+  err: { color: DIM, fontSize: 15, textAlign: "center", marginTop: 22, lineHeight: 22 },
+  detail: { color: "#5A625E", fontSize: 11.5, textAlign: "center", marginTop: 24 },
   btn: {
-    marginTop: 18, borderRadius: 999, paddingVertical: 14, paddingHorizontal: 34,
+    marginTop: 14, borderRadius: 999, paddingVertical: 14, paddingHorizontal: 30,
     borderWidth: 2, borderColor: "#D7E2EA",
   },
-  btnAlt: { backgroundColor: GOLD, borderColor: GOLD },
+  btnGold: { backgroundColor: GOLD, borderColor: GOLD },
   btnTxt: { color: "#D7E2EA", fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", fontSize: 13 },
 });

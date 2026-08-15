@@ -7,11 +7,6 @@
     "icon": "./Assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B0F0E",
-    "splash": {
-      "image": "./Assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B0F0E"
-    },
     "android": {
       "package": "com.defargaaw.app",
       "adaptiveIcon": {
@@ -39,6 +34,7 @@
         "projectId": "c2c31b0a-3724-4f22-832d-6cb731721862"
       }
     },
-    "owner": "pol23s-team"
+    "owner": "pol23s-team",
+    "newArchEnabled": false
   }
 }
