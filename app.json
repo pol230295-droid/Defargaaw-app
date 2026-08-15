@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "DefarGaaw",
+    "slug": "defargaaw",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0F0E",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F0E"
+    },
+    "android": {
+      "package": "com.defargaaw.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B0F0E"
+      },
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.defargaaw.app",
+      "supportsTablet": false
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "description": "DefarGaaw — dépannage à domicile par des artisans vérifiés à Dakar. Diagnostic 3 000 FCFA, devis validé avant réparation, garantie 15 jours.",
+    "primaryColor": "#E0A93B",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
