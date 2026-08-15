@@ -18,7 +18,7 @@ const GOLD = "#E0A93B";
 const DIM = "#8A958F";
 
 // Site embarqué (fonctionne hors connexion).
-const LOCAL_SITE = require("./web/index.html");
+const LOCAL_SITE = require("./Web/index.html");
 
 export default function App() {
   const webRef = useRef(null);
