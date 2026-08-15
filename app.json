@@ -33,6 +33,12 @@
     "primaryColor": "#E0A93B",
     "web": {
       "favicon": "./Assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c2c31b0a-3724-4f22-832d-6cb731721862"
+      }
+    },
+    "owner": "pol23s-team"
   }
 }
